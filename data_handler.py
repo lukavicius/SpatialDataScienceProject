@@ -144,26 +144,26 @@ class Data_Handler:
         """
         Fetch World Bank data using wbdata.get_data for one or more indicators, including ISO3 codes.
         Works with the new flattened structure and includes optional date filtering.
-    
+
         Parameters:
             indicators (dict): Mapping from indicator code to descriptive name,
                                e.g. {'NY.GDP.MKTP.CD': 'GDP', 'SP.POP.TOTL': 'Population'}
             countries (list or str): ISO2 country codes like ['US', 'CN'], or 'all'
             start_year (int): Start year (optional)
             end_year (int): End year (optional)
-    
+
         Returns:
             pd.DataFrame: DataFrame with columns ['Country', 'ISO3', 'Year', ...indicators...]
         """
         import pandas as pd
         from functools import reduce
         import wbdata
-    
+
         all_data = []
-    
+
         for code, name in indicators.items():
             raw_data = wbdata.get_data(indicator=code, country=countries)
-    
+
             rows = []
             for record in raw_data:
                 year = int(record['date'])
@@ -171,36 +171,36 @@ class Data_Handler:
                 value = record.get('value')
                 country_name = record['country']['value']
                 country_iso3 = record.get('countryiso3code', record['country']['id'])
-    
+
                 rows.append({
                     "Country": country_name,
                     "ISO3": country_iso3,
                     "Year": year,
                     name: value
                 })
-    
+
             all_data.append(pd.DataFrame(rows))
-    
+
         # Merge all indicators
         if all_data:
             df = reduce(lambda left, right: pd.merge(left, right, on=['Country', 'ISO3', 'Year'], how='outer'), all_data)
         else:
             df = pd.DataFrame(columns=['Country', 'ISO3', 'Year'] + list(indicators.values()))
-    
+
         # Filter by start_year / end_year
         if start_year is not None:
             df = df[df['Year'] >= start_year]
         if end_year is not None:
             df = df[df['Year'] <= end_year]
-    
+
         # Reorder columns
         cols = ['Country', 'ISO3', 'Year'] + list(indicators.values())
         df = df[[c for c in cols if c in df.columns]]
-    
+
         return df
 
 
-    
+
     @staticmethod
     def get_data_GIDD(client_id: str, limit: int = 500, iso3=None, start_year: str = None, end_year: str = None, hazard_category_name: str = None, hazard_type_name: str = None, indicators=None) -> pd.DataFrame:
         """
