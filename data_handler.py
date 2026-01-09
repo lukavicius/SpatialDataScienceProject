@@ -3,6 +3,8 @@ import datetime
 import os
 import requests
 import wbdata
+import pycountry  # For ISO2 → ISO3 mapping
+
 
 
 class Data_Handler:
@@ -155,14 +157,13 @@ class Data_Handler:
             pd.DataFrame: DataFrame with columns ['Country', 'Year', ...indicators...]
         """
         # Handle date range
-        if start_year and end_year:
-            date_range = (
-                datetime.datetime(start_year, 1, 1),
-                datetime.datetime(end_year, 12, 31),
-            )
+        if start_year or end_year:
+            start = datetime.datetime(start_year if start_year else 1960, 1, 1)
+            end = datetime.datetime(end_year if end_year else datetime.datetime.today().year, 12, 31)
+            date_range = (start, end)
         else:
             date_range = None
-
+    
         # Fetch from World Bank
         df = wbdata.get_dataframe(
             indicators,
@@ -171,22 +172,30 @@ class Data_Handler:
             freq='Y',
             parse_dates=True
         )
-
-        # Reset and clean DataFrame
-        df = df.reset_index().rename(columns={"country": "Country", "date": "Year"})
-
-        # Convert Year to integer if parsed as datetime
+    
+        # Reset index: country names and dates
+        df = df.reset_index().rename(columns={"date": "Year"})
+    
+        # Convert Year to integer
         if pd.api.types.is_datetime64_any_dtype(df["Year"]):
             df["Year"] = df["Year"].dt.year
-
-        # Reorder columns: Country, Year, then indicators
-        indicator_columns = list(indicators.values())
-        cols = ["Country", "Year"] + indicator_columns
-        df = df[[c for c in cols if c in df.columns]]
-
-        return df
-
     
+        # Map country names → ISO3
+        def country_to_iso3(name):
+            try:
+                return pycountry.countries.lookup(name).alpha_3
+            except:
+                return None
+    
+        df["iso3"] = df["country"].apply(country_to_iso3)
+        
+        # Reorder columns
+        indicator_columns = list(indicators.values())
+        cols = ["iso3", "Year"] + indicator_columns
+        df = df[[c for c in cols if c in df.columns]]
+    
+        return df
+        
     @staticmethod
     def get_data_GIDD(client_id: str, limit: int = 500, iso3=None, start_year: str = None, end_year: str = None, hazard_category_name: str = None, hazard_type_name: str = None, indicators=None) -> pd.DataFrame:
         """
